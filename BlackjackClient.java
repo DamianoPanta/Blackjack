@@ -12,46 +12,50 @@ class Client {
             System.out.println("\n Connected.\n");
             print_help();
 
-            byte response_buffer[] = new byte[64];
-            int response_len;
-            String response_string;
-            String[] message;
-            String[] response;
-            int chips = 100;
+            byte conversation_buffer[] = new byte[64];
+            int conversation_len;
+            String conversation_string;
+            String[] conversation;
+            int remaining_chips = 100;
 
             // TODO : implement a more robust way to detect when a message is finished
             // (delimiter, fixed size, header)
 
             while (true) {
                 // --- SERVER RESPOND WITH GAME STATUS ---
-                response_len = in.read(response_buffer);
-                if (response_len <= 0) break;
+                conversation_len = in.read(conversation_buffer);
+                if (conversation_len <= 0) break;
 
-                response_string = new String(response_buffer, 0, response_len);
-                response = response_string.trim().replaceAll(" {2,}", "").split(" ");
+                conversation_string = new String(conversation_buffer, 0, conversation_len);
+                conversation = conversation_string.trim().replaceAll(" {2,}", "").split(" ");
 
 
                 // --- CLIENT UPDATE INFO (PRINT) ---
-                if (response[0].equals("BANKROLL")) {
-                    chips = Integer.parseInt(response[1]);
-                    System.out.println("You have currently " + chips + " chips");
+                if (conversation[0].equals("BANKROLL")) {
+                    remaining_chips = Integer.parseInt(conversation[1]);
+                    System.out.println("You have currently " + remaining_chips + " chips");
                 }
 
                 // --- CLIENT ACTIOM ---
                 // treat input
-                System.out.print("> ");
-                message = input.nextLine().trim().replaceAll(" {2,}", "").toLowerCase().split(" ");
+                while (true) {
+                    System.out.print("> ");
+                    conversation_string = input.nextLine().trim().replaceAll(" {2,}", "").toLowerCase();
+                    conversation = conversation_string.split(" ");
 
-                if (message[0].equals("quit")) {
-                    int score = chips - 100;
-                    System.out.println("You quit the game with a ");
+                    if (!conversation[0].equals("help")) break;
+
+                    print_help();
+                }
+                
+                if (conversation[0].equals("quit")) {
+                    int score = remaining_chips - 100;
+                    System.out.println("You quit the game " + ((score > 0) ? "winning " : "losing ") + Math.abs(score) + " chips. See you next time !");
                     break;
                 }
 
-                // if (!message.equals("pass")) {
-                //     out.write(message.getBytes());
-                //     out.flush();
-                // }
+                out.write((conversation_string + "\r\n\r\n").getBytes());
+                out.flush();
 
             }
         } catch (UnknownHostException error) {
