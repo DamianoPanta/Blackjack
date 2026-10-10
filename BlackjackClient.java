@@ -12,7 +12,7 @@ class Client {
             System.out.println("\n Connected.\n");
             print_help();
 
-            byte conversation_buffer[] = new byte[64];
+            byte[] conversation_buffer = new byte[64];
             int conversation_len;
             String conversation_string;
             String[] conversation;

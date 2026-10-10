@@ -29,7 +29,7 @@ class Server {
                 System.out.println("[main] Server waiting for connection");
 
                 Socket client_socket = server_socket.accept();
-                Player client_thread = new Player(client_socket, deck, INITIAL_BANKROLL);
+                Game client_thread = new Game(client_socket, deck, INITIAL_BANKROLL);
                 client_thread.start();
 
                 System.out.println("[main] Client thread started");
@@ -40,15 +40,17 @@ class Server {
     }
 }
 
-class Player extends Thread {
+class Game extends Thread {
     Socket client_socket;
     OutputStream out;
     InputStream in;
     String[] player_deck;
-    int player_bankroll = 100;
+    int player_bankroll;
     String response_to_client = new String();
+    boolean in_round = false;
+    Round current_round;
 
-    Player(Socket _s, String[] deck, int bankroll) {
+    Game(Socket _s, String[] deck, int bankroll) {
         try {
             client_socket = _s;
             out = client_socket.getOutputStream();
@@ -57,54 +59,83 @@ class Player extends Thread {
             player_bankroll = bankroll;
         } catch (Exception e) {
             System.err.println("Error creating player " + e.getMessage());
-            client_socket.close();
         }
     }
 
     @Override
     public void run() {
         try {
-            // Initial message
-            out.write(bank_response(player_bankroll).getBytes());
+            // Initial message to send initial bankroll
+            add_bank_response();
+            send_response();
+
+            InputReader input_reader = new InputReader(in);
+            String[] input_string;
+            int amount;
 
             while (true) {
-                int msg_len = in.read(msg);
-                System.out.println("Server msg buffer after read: " + new String(msg).replace('\0', '.'));
-                if (msg_len <= 0)
-                    break; // received nothing
-                System.out.println("Message received by server: " + new String(msg, 0, msg_len));
-                out.write(("Hi client, you send me: " + new String(msg, 0, msg_len)).getBytes());
-                out.flush();
+                input_string = input_reader.ReadLine();
+                if (input_reader.stream_end)
+                    break;
+
+                if (input_string[0].equals("BET")) {
+                    if (in_round) {
+                        out.write("ROUND IN PROGRESS\r\n\r\n".getBytes());
+                        continue;
+                    }
+
+                    try {
+                        amount = Integer.parseInt(input_string[1]);
+                    } catch (NumberFormatException e) {
+                        out.write("INVALID BET\r\n\r\n".getBytes());
+                        continue;
+                    }
+
+                    if (amount > player_bankroll) {
+                        out.write("INSUFFICIENT FUNDS\r\n\r\n".getBytes());
+                        continue;
+                    }
+
+                    current_round = new Round(player_deck, player_bankroll, amount);
+
+                }
             }
+
             client_socket.close();
             System.out.println("Client thread closed");
         } catch (Exception e) {
-            System.err.println("Worker issue " + e);
+            System.err.println("Player issue " + e);
         }
     }
 
     void send_response() {
-        out.flush();
-        out.write(response_to_client + "\r\n");
+        try {
+            out.write((response_to_client + "\r\n").getBytes());
+            out.flush();
+            response_to_client = "";
+        } catch (IOException e) {
+            System.err.println("Error writing to socket: " + e.getMessage());
+        }
     }
 
     void add_bank_response() {
         response_to_client += "BANKROLL " + player_bankroll + "\r\n";
     }
 
-    void add_hand_response(String[] player_card, String[] dealer_card) {
-        int player_total = 0;
-        int dealer_total = 0;
-
-        for (String card : player_card) {
-            player_total += Integer.parseInt(card.split("")[0]);
-        }
-
-        for (String card : dealer_card) {
-            dealer_total += Integer.parseInt(card.split("")[0]);
-        }
+    void add_hand_response(String[] player_card, String[] dealer_card, int player_total, int dealer_total) {
         response_to_client += "PLAYER " + String.join(" ", player_card) + " " + player_total + "\r\n";
         response_to_client += "DEALER " + String.join(" ", dealer_card) + " " + dealer_total + "\r\n";
+    }
+
+    void add_roundstatus_response(int amount, boolean blackjack) {
+        if (blackjack)
+            response_to_client += "BLACKJACK " + amount + "\r\n";
+        else if (amount > 0)
+            response_to_client += "WIN " + amount + "\r\n";
+        else if (amount < 0)
+            response_to_client += "LOSE " + Math.abs(amount) + "\r\n";
+        else
+            response_to_client += "PUSH 0\r\n";
     }
 
     static String[] shuffle_deck(String[] deck) {
@@ -125,10 +156,43 @@ class Player extends Thread {
     }
 }
 
+// TODO: check that string concatenation is not too bad in term of efficiency
+class InputReader {
+    InputStream in;
+    boolean stream_end = false;
+    private byte[] request_byte;
+    private String request_string;
+
+    InputReader(InputStream in) {
+        this.in = in;
+    }
+
+    String[] ReadLine() {
+        String line = "";
+        while (true) {
+            try {
+                request_byte = in.readNBytes(2);
+            } catch (Exception e) {
+                System.err.println("Error reading from socket: " + e.getMessage());
+            }
+            if (request_byte.length <= 0) {
+                stream_end = true;
+                break;
+            }
+            request_string = new String(request_byte);
+            if (request_string.equals("\r\n"))
+                break;
+            line += request_string;
+        }
+        return line.split(" ");
+    }
+}
+
 class Round {
     String[] player_card;
     String[] dealer_card;
-    bool dealer_card2_visible = false;
+    boolean dealer_card2_visible = false;
+    boolean blackjack = true;
 
     Round(String[] current_deck, int current_bankroll, int bet) {
 
