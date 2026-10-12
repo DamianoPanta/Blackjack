@@ -236,7 +236,7 @@ class DeckManager {
         deck_index = player_deck.length - 1;
     }
 
-    void pick_card(String[] previous_card, int card_amount) {
+    int pick_card(String[] previous_card, int card_amount) {
         deck_index -= card_amount;
         String[] new_card = Arrays.copyOfRange(player_deck, deck_index + 1, deck_index + card_amount + 1);
 
@@ -244,6 +244,17 @@ class DeckManager {
         previous_card = Arrays.copyOf(previous_card, previous_length + card_amount);
 
         System.arraycopy(new_card, 0, previous_card, previous_length, card_amount);
+
+        int total = 0;
+        for (String card : previous_card) {
+            try {
+                total += Integer.parseInt(card.split("")[0]);
+            } catch (NumberFormatException e) {
+                System.err.println("Error reading card number: " + e.getMessage());
+            }
+        }
+
+        return total;
     }
 }
 
@@ -252,8 +263,8 @@ class Round {
     int bet;
     String[] player_card;
     String[] dealer_card;
-    int player_total = 0;
-    int dealer_total = 0;
+    int player_total;
+    int dealer_total;
     boolean dealer_card_visible = false;
 
     Round(Game game, int bet) {
@@ -261,29 +272,10 @@ class Round {
         this.bet = bet;
     }
 
-    void compute_totals(String[] player_card, String[] dealer_card) {
-        for (String card : player_card) {
-            try {
-                player_total += Integer.parseInt(card.split("")[0]);
-            } catch (NumberFormatException e) {
-                System.err.println("Error reading card number: " + e.getMessage());
-            }
-        }
-
-        for (String card : dealer_card) {
-            try {
-                dealer_total += Integer.parseInt(card.split("")[0]);
-            } catch (NumberFormatException e) {
-                System.err.println("Error reading card number: " + e.getMessage());
-            }
-        }
-    }
-
     void Start() {
         game.in_round = true;
-        game.deck_manager.pick_card(player_card, 2);
-        game.deck_manager.pick_card(dealer_card, 2);
-        compute_totals(player_card, dealer_card);
+        player_total = game.deck_manager.pick_card(player_card, 2);
+        dealer_total = game.deck_manager.pick_card(dealer_card, 2);
 
         game.add_hand_response(dealer_card_visible, player_card, dealer_card, player_total, dealer_total);
 
@@ -297,8 +289,7 @@ class Round {
     }
 
     void Hit() {
-        game.deck_manager.pick_card(player_card, 1);
-        compute_totals(player_card, dealer_card);
+        player_total = game.deck_manager.pick_card(player_card, 1);
 
         game.add_hand_response(dealer_card_visible, player_card, dealer_card, player_total, dealer_total);
 
@@ -331,6 +322,7 @@ class Round {
     }
 
     void DealerPlay() {
-
+        while (dealer_total <= 16)
+            dealer_total = game.deck_manager.pick_card(dealer_card, 1);
     }
 }
