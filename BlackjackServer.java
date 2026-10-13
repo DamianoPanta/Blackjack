@@ -4,6 +4,8 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 class Server {
@@ -77,13 +79,21 @@ class Game extends Thread {
             int amount;
 
             while (!game_over) {
+                System.out.println("[Game]: wait for client request");
                 input_string = input_reader.ReadLine();
                 if (input_reader.stream_end)
                     break;
 
                 if (input_string[0].equals("BET")) {
+                    if (input_string.length < 2) {
+                        out.write("INVALID BET\r\n\r\n".getBytes());
+                        continue;
+                    }
+
                     try {
                         amount = Integer.parseInt(input_string[1]);
+                        if (amount < 0)
+                            throw new NumberFormatException();
                     } catch (NumberFormatException e) {
                         out.write("INVALID BET\r\n\r\n".getBytes());
                         continue;
@@ -102,27 +112,35 @@ class Game extends Thread {
                     current_round = new Round(this, amount);
                     current_round.Start();
                 } else if (input_string[0].equals("HIT")) {
-                    if (!in_round)
+                    if (!in_round) {
                         out.write("NO ACTIVE ROUND\r\n\r\n".getBytes());
-                    else
+                        continue;
+                    } else
                         current_round.Hit();
                 } else if (input_string[0].equals("STAND")) {
-                    if (!in_round)
+                    if (!in_round) {
                         out.write("NO ACTIVE ROUND\r\n\r\n".getBytes());
-                    else
+                        continue;
+                    } else
                         current_round.Stand();
-                } else if (input_string[0].equals("BANK"))
+                } else if (input_string[0].equals("BANK")) {
                     add_bank_response();
-                else if (input_string[0].equals("QUIT"))
+                } else if (input_string[0].equals("QUIT")) {
+                    game_over = true;
                     client_socket.close();
-                else
+                    continue;
+                } else {
                     out.write("WRONG\r\n\r\n".getBytes());
+                    continue;
+                }
 
                 send_response();
             }
 
             if (!client_socket.isClosed())
                 client_socket.close();
+
+            System.out.println("[Game]: client_socket closed");
         } catch (Exception e) {
             System.err.println("Player issue " + e);
         }
@@ -142,19 +160,25 @@ class Game extends Thread {
         response_to_client += "BANKROLL " + player_bankroll + "\r\n";
     }
 
-    void add_hand_response(boolean dealer_card_visible, String[] player_card, String[] dealer_card, int player_total,
+    void add_hand_response(boolean dealer_card_visible, List<String> player_card, List<String> dealer_card,
+            int player_total,
             int dealer_total) {
         response_to_client += "PLAYER " + String.join(" ", player_card) + " " + player_total + "\r\n";
-        if (!current_round.dealer_card_visible)
-            dealer_card[1] = "??";
-        response_to_client += "DEALER " + String.join(" ", dealer_card) + " " + dealer_total + "\r\n";
+        if (!dealer_card_visible) {
+            String temp = dealer_card.get(1);
+            dealer_card.set(1, "??");
+            response_to_client += "DEALER " + String.join(" ", dealer_card) + "\r\n";
+            dealer_card.set(1, temp);
+        } else
+            response_to_client += "DEALER " + String.join(" ", dealer_card) + " " + dealer_total + "\r\n";
     }
 
     void add_roundstatus_response(int amount, boolean blackjack) {
         in_round = false;
         if (blackjack) {
-            response_to_client += "BLACKJACK " + amount + "\r\n";
-            player_bankroll += amount * 1.5;
+            int gain = (int) (amount * 1.5);
+            response_to_client += "BLACKJACK " + gain + "\r\n";
+            player_bankroll += gain;
         } else if (amount > 0) {
             response_to_client += "WIN " + amount + "\r\n";
             player_bankroll += amount;
@@ -168,11 +192,6 @@ class Game extends Thread {
     void add_gameover_response() {
         response_to_client += "GAME OVER\r\n";
         add_bank_response();
-        try {
-            client_socket.close();
-        } catch (IOException e) {
-            System.err.println("Close socket error: " + e.getMessage());
-        }
         in_round = false;
         game_over = true;
     }
@@ -199,31 +218,33 @@ class Game extends Thread {
 class InputReader {
     InputStream in;
     boolean stream_end = false;
-    private byte[] request_byte;
+    private byte[] request_byte = new byte[64];
     private String request_string;
+    private int request_len;
 
     InputReader(InputStream in) {
         this.in = in;
     }
 
     String[] ReadLine() {
-        String line = "";
-        while (true) {
-            try {
-                request_byte = in.readNBytes(2);
-            } catch (Exception e) {
-                System.err.println("Error reading from socket: " + e.getMessage());
-            }
-            if (request_byte.length <= 0) {
-                stream_end = true;
-                break;
-            }
-            request_string = new String(request_byte);
-            if (request_string.equals("\r\n"))
-                break;
-            line += request_string;
+        try {
+            request_len = in.read(request_byte);
+        } catch (Exception e) {
+            System.err.println("Error reading from socket: " + e.getMessage());
         }
-        return line.split(" ");
+        if (request_len <= 0) {
+            stream_end = true;
+            return "".split("");
+        }
+        request_string = new String(request_byte, 0, request_len);
+        System.out.println("[InputReader]: request string " + request_string.replace("\n", "\\n").replace("\r", "\\r"));
+
+        if (!request_string.matches(".*\r\n\r\n")) {
+            return "".split("");
+        }
+
+        request_string = request_string.replaceAll("(\\r\\n)+$", "");
+        return request_string.split(" ");
     }
 }
 
@@ -236,22 +257,34 @@ class DeckManager {
         deck_index = player_deck.length - 1;
     }
 
-    int pick_card(String[] previous_card, int card_amount) {
+    int pick_card(List<String> previous_card, int card_amount) {
         deck_index -= card_amount;
         String[] new_card = Arrays.copyOfRange(player_deck, deck_index + 1, deck_index + card_amount + 1);
 
-        int previous_length = previous_card.length;
-        previous_card = Arrays.copyOf(previous_card, previous_length + card_amount);
-
-        System.arraycopy(new_card, 0, previous_card, previous_length, card_amount);
+        for (String card : new_card) {
+            previous_card.add(card);
+        }
 
         int total = 0;
+        int aces = 0;
         for (String card : previous_card) {
             try {
-                total += Integer.parseInt(card.split("")[0]);
+                String rank = card.split("")[0];
+                if (rank.equals("T") || rank.equals("J") || rank.equals("Q") || rank.equals("K"))
+                    total += 10;
+                else if (rank.equals("A")) {
+                    aces++;
+                    total += 11;
+                } else
+                    total += Integer.parseInt(rank);
             } catch (NumberFormatException e) {
                 System.err.println("Error reading card number: " + e.getMessage());
             }
+        }
+
+        while (total > 21 && aces > 0) {
+            total -= 10;
+            aces--;
         }
 
         return total;
@@ -261,8 +294,8 @@ class DeckManager {
 class Round {
     Game game;
     int bet;
-    String[] player_card;
-    String[] dealer_card;
+    List<String> player_card = new ArrayList<>();
+    List<String> dealer_card = new ArrayList<>();
     int player_total;
     int dealer_total;
     boolean dealer_card_visible = false;
@@ -278,12 +311,16 @@ class Round {
         dealer_total = game.deck_manager.pick_card(dealer_card, 2);
 
         game.add_hand_response(dealer_card_visible, player_card, dealer_card, player_total, dealer_total);
+        System.out.println("in the round");
 
-        if (player_total == 21) {
+        if (player_total == 21 && dealer_total == 21) {
+            game.add_roundstatus_response(0, false);
+        } else if (player_total == 21) {
             game.add_roundstatus_response(bet, true);
-        }
+        } else if (dealer_total == 21)
+            game.add_roundstatus_response(-bet, false);
 
-        if (game.deck_manager.deck_index < 3 || game.player_bankroll <= 0) {
+        if ((game.deck_manager.deck_index < 3 || game.player_bankroll <= 0) && !game.in_round) {
             game.add_gameover_response();
         }
     }
@@ -295,6 +332,9 @@ class Round {
 
         if (player_total == 21) {
             DealerPlay();
+            if (player_total == dealer_total)
+                game.add_roundstatus_response(0, false);
+
             game.add_roundstatus_response(bet, false);
 
             if (game.deck_manager.deck_index < 3 || game.player_bankroll <= 0) {
@@ -302,9 +342,9 @@ class Round {
             }
         } else if (player_total > 21 || game.deck_manager.deck_index < 0) {
             dealer_card_visible = true;
-            game.add_roundstatus_response(bet, false);
+            game.add_roundstatus_response(-bet, false);
 
-            if (game.deck_manager.deck_index < 3 || game.player_bankroll <= 0) {
+            if ((game.deck_manager.deck_index < 3 || game.player_bankroll <= 0) && !game.in_round) {
                 game.add_gameover_response();
             }
         }
@@ -314,7 +354,13 @@ class Round {
         dealer_card_visible = true;
         DealerPlay();
         game.add_hand_response(dealer_card_visible, player_card, dealer_card, player_total, dealer_total);
-        game.add_roundstatus_response(bet, false);
+
+        if (player_total == dealer_total)
+            game.add_roundstatus_response(0, false);
+        else if (player_total > dealer_total || dealer_total > 21)
+            game.add_roundstatus_response(bet, false);
+        else
+            game.add_roundstatus_response(-bet, false);
 
         if (game.deck_manager.deck_index < 3 || game.player_bankroll <= 0) {
             game.add_gameover_response();

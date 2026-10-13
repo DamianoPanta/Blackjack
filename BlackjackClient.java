@@ -12,7 +12,7 @@ class Client {
             System.out.println("\n Connected.\n");
             print_help();
 
-            byte[] conversation_buffer = new byte[64];
+            byte[] conversation_buffer = new byte[128];
             int conversation_len;
             String conversation_string;
             String[] conversation;
@@ -27,14 +27,10 @@ class Client {
                 if (conversation_len <= 0) break;
 
                 conversation_string = new String(conversation_buffer, 0, conversation_len);
-                conversation = conversation_string.trim().replaceAll(" {2,}", "").split(" ");
 
 
                 // --- CLIENT UPDATE INFO (PRINT) ---
-                if (conversation[0].equals("BANKROLL")) {
-                    remaining_chips = Integer.parseInt(conversation[1]);
-                    System.out.println("You have currently " + remaining_chips + " chips");
-                }
+                System.out.print(conversation_string);
 
                 // --- CLIENT ACTIOM ---
                 // treat input
@@ -54,6 +50,7 @@ class Client {
                     break;
                 }
 
+                conversation_string = conversation_string.toUpperCase();
                 out.write((conversation_string + "\r\n\r\n").getBytes());
                 out.flush();
 
