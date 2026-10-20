@@ -1,13 +1,17 @@
+import java.io.InputStream;
+
 class InputReader {
 
     InputStream in;
     boolean stream_end = false;
-    private byte[] request_byte = new byte[64];
+    private byte[] request_byte = new byte[128];
     private String request_string;
     private int request_len;
+    boolean isClient;
 
-    InputReader(InputStream in) {
+    InputReader(InputStream in, boolean isClient) {
         this.in = in;
+        this.isClient = isClient;
     }
 
     String[] ReadLine() {
@@ -21,16 +25,17 @@ class InputReader {
             return "".split("");
         }
         request_string = new String(request_byte, 0, request_len);
-        System.out.println(
-            "[InputReader]: request string " +
-                request_string.replace("\n", "\\n").replace("\r", "\\r")
-        );
-
-        if (!request_string.matches(".*\r\n\r\n")) {
+        if (!request_string.endsWith("\r\n\r\n")) {
+            System.out.println("I'm here");
             return "".split("");
         }
 
-        request_string = request_string.replaceAll("(\\r\\n)+$", "");
+        // remove special characters for server
+        if (!isClient) request_string = request_string.replaceAll(
+            "(\\r\\n)+$",
+            ""
+        );
+
         return request_string.split(" ");
     }
 }

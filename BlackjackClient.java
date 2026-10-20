@@ -11,38 +11,36 @@ class Client {
         ) {
             OutputStream out = socket.getOutputStream();
             InputStream in = socket.getInputStream();
-            InputReader inputReader = new InputReader(in);
+            InputReader inputReader = new InputReader(in, true);
 
             System.out.println("\n Connected.\n");
             print_help();
 
             String conversationString;
             String[] conversation;
-            int remaining_chips = 100;
-
-            // TODO : implement a more robust way to detect when a message is finished
-            // (delimiter, fixed size, header)
+            int remaining_chips = 0;
 
             while (true) {
                 // --- SERVER RESPOND WITH GAME STATUS ---
-                conversation = input_reader.ReadLine();
-                if (input_reader.stream_end) break;
+                conversation = inputReader.ReadLine();
+                if (inputReader.stream_end) break;
 
-                conversation_string = String.join(" ", conversation);
+                conversationString = String.join(" ", conversation);
 
                 // --- CLIENT UPDATE INFO (PRINT) ---
-                System.out.print(conversation_string);
+                System.out.print(conversationString);
+                if (conversationString.contains("GAME OVER")) break;
 
                 // --- CLIENT ACTIOM ---
                 // treat input
                 while (true) {
                     System.out.print("> ");
-                    conversation_string = input
+                    conversationString = input
                         .nextLine()
                         .trim()
                         .replaceAll(" {2,}", "")
                         .toLowerCase();
-                    conversation = conversation_string.split(" ");
+                    conversation = conversationString.split(" ");
 
                     if (!conversation[0].equals("help")) break;
 
@@ -60,8 +58,8 @@ class Client {
                     break;
                 }
 
-                conversation_string = conversation_string.toUpperCase();
-                out.write((conversation_string + "\r\n\r\n").getBytes());
+                conversationString = conversationString.toUpperCase();
+                out.write((conversationString + "\r\n\r\n").getBytes());
                 out.flush();
             }
         } catch (UnknownHostException error) {

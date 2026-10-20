@@ -95,7 +95,7 @@ class Game extends Thread {
             add_bank_response();
             send_response();
 
-            InputReader input_reader = new InputReader(in);
+            InputReader input_reader = new InputReader(in, false);
             String[] input_string;
             int amount;
 
@@ -148,7 +148,6 @@ class Game extends Thread {
                     add_bank_response();
                 } else if (input_string[0].equals("QUIT")) {
                     game_over = true;
-                    client_socket.close();
                     continue;
                 } else {
                     out.write("WRONG\r\n\r\n".getBytes());
@@ -223,7 +222,6 @@ class Game extends Thread {
 
     void add_roundstatus_response(Round round, RoundOutcome outcome) {
         int bet = round.getBet();
-        System.out.println(outcome);
         switch (outcome) {
             case BLACKJACK:
                 response_to_client += "BLACKJACK " + bet * 1.5 + "\r\n";
