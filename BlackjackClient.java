@@ -2,7 +2,7 @@ import java.io.*;
 import java.net.*;
 import java.util.Scanner;
 
-class Client {
+class BlackjackClient {
 
     public static void main(String[] argv) {
         try (
@@ -31,7 +31,7 @@ class Client {
             print_help();
 
             while (true) {
-                // --- CLIENT ACTIOM ---
+                // --- CLIENT ACTION ---
                 // treat input
                 while (true) {
                     System.out.print("> ");

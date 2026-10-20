@@ -6,7 +6,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
-class Server {
+class BlackjackServer {
 
     public static void main(String[] argv) {
         try (ServerSocket server_socket = new ServerSocket(2624)) {
@@ -100,7 +100,6 @@ class Game extends Thread {
             int amount;
 
             while (!gameOver) {
-                System.out.println("[Game]: wait for client request");
                 try {
                     inputString = inputReader.ReadLine();
                 } catch (SocketTimeoutException e) {
@@ -115,15 +114,14 @@ class Game extends Thread {
                         continue;
                     }
 
-                    try {
-                        amount = Integer.parseInt(inputString[1]);
-                        if (amount < 0) throw new NumberFormatException();
-                    } catch (NumberFormatException e) {
+                    String token = inputString[1];
+                    if (!token.matches("[1-9][0-9]*")) {
                         out.write("INVALID BET\r\n\r\n".getBytes());
                         continue;
                     }
 
-                    if (amount > playerBankroll) {
+                    // 10^9 < Integer.MAX_VALUE < 10^10
+                    if (token.length() > 9 || Integer.parseInt(token) > playerBankroll) {
                         out.write("INSUFFICIENT FUNDS\r\n\r\n".getBytes());
                         continue;
                     }
@@ -133,6 +131,7 @@ class Game extends Thread {
                         continue;
                     }
 
+                    amount = Integer.parseInt(token);
                     playerBankroll -= amount;
                     round = new Round(deckManager, amount);
                     inRound = true;
@@ -229,7 +228,7 @@ class Game extends Thread {
         int bet = round.getBet();
         switch (outcome) {
             case BLACKJACK:
-                responseToClient += "BLACKJACK " + bet * 1.5 + "\r\n";
+                responseToClient += "BLACKJACK " + (int) Math.floor(bet * 1.5) + "\r\n";
                 break;
             case WIN:
                 responseToClient += "WIN " + bet + "\r\n";
