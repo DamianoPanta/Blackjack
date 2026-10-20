@@ -9,28 +9,28 @@ class Client {
             Socket socket = new Socket("localhost", 2624);
             Scanner input = new Scanner(System.in)
         ) {
+            socket.setSoTimeout(300000);
             OutputStream out = socket.getOutputStream();
             InputStream in = socket.getInputStream();
             InputReader inputReader = new InputReader(in, true);
 
-            System.out.println("\n Connected.\n");
-            print_help();
-
             String conversationString;
             String[] conversation;
-            int remaining_chips = 0;
+            try {
+                conversation = inputReader.ReadLine();
+            } catch (SocketTimeoutException e) {
+                System.err.println("Server takes too long too respond or response abnormally long. Quit game");
+                return;
+            }
+
+            if (inputReader.stream_end) return;
+            if (conversation[0].equals("BANKROLL")) 
+                System.out.println("\r\nConnected. You start with " + conversation[1].replaceAll("(\\r\\n)+$", "") + " chips.\n");
+            else
+                System.out.println("\n Connected.\n");
+            print_help();
 
             while (true) {
-                // --- SERVER RESPOND WITH GAME STATUS ---
-                conversation = inputReader.ReadLine();
-                if (inputReader.stream_end) break;
-
-                conversationString = String.join(" ", conversation);
-
-                // --- CLIENT UPDATE INFO (PRINT) ---
-                System.out.print(conversationString);
-                if (conversationString.contains("GAME OVER")) break;
-
                 // --- CLIENT ACTIOM ---
                 // treat input
                 while (true) {
@@ -48,19 +48,28 @@ class Client {
                 }
 
                 if (conversation[0].equals("quit")) {
-                    int score = remaining_chips - 100;
-                    System.out.println(
-                        "You quit the game " +
-                            (score > 0 ? "winning " : "losing ") +
-                            Math.abs(score) +
-                            " chips. See you next time !"
-                    );
                     break;
                 }
 
                 conversationString = conversationString.toUpperCase();
                 out.write((conversationString + "\r\n\r\n").getBytes());
                 out.flush();
+
+                // --- SERVER RESPOND WITH GAME STATUS ---
+                try {
+                    conversation = inputReader.ReadLine();
+                } catch (SocketTimeoutException e) {
+                    System.err.println("Server takes too long too respond or response abnormally long. Quit game");
+                    break;
+                }
+                if (inputReader.stream_end) break;
+
+                conversationString = String.join(" ", conversation);
+
+                // --- CLIENT UPDATE INFO (PRINT) ---
+                System.out.print(conversationString);
+                if (conversationString.contains("GAME OVER")) break;
+
             }
         } catch (UnknownHostException error) {
             System.err.println("Unkown host: " + error.getMessage());

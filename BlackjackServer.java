@@ -1,8 +1,7 @@
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.ServerSocket;
-import java.net.Socket;
+import java.net.*;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -70,14 +69,15 @@ class Game extends Thread {
     String[] playerDeck;
     DeckManager deckManager;
     int playerBankroll;
-    String response_to_client = new String();
-    boolean in_round = false;
-    boolean game_over = false;
+    String responseToClient = new String();
+    boolean inRound = false;
+    boolean gameOver = false;
     Round round;
 
     Game(Socket _s, String[] deck, int bankroll) {
         try {
             client_socket = _s;
+            client_socket.setSoTimeout(300000);     // 5 minutes    
             out = client_socket.getOutputStream();
             in = client_socket.getInputStream();
             playerDeck = shuffle_deck(deck);
@@ -95,23 +95,28 @@ class Game extends Thread {
             add_bank_response();
             send_response();
 
-            InputReader input_reader = new InputReader(in, false);
-            String[] input_string;
+            InputReader inputReader = new InputReader(in, false);
+            String[] inputString;
             int amount;
 
-            while (!game_over) {
+            while (!gameOver) {
                 System.out.println("[Game]: wait for client request");
-                input_string = input_reader.ReadLine();
-                if (input_reader.stream_end) break;
+                try {
+                    inputString = inputReader.ReadLine();
+                } catch (SocketTimeoutException e) {
+                    System.err.println("Client takes too long too respond. Close connections or response abnormally long");
+                    break;
+                }
+                if (inputReader.stream_end) break;
 
-                if (input_string[0].equals("BET")) {
-                    if (input_string.length < 2) {
+                if (inputString[0].equals("BET")) {
+                    if (inputString.length < 2) {
                         out.write("INVALID BET\r\n\r\n".getBytes());
                         continue;
                     }
 
                     try {
-                        amount = Integer.parseInt(input_string[1]);
+                        amount = Integer.parseInt(inputString[1]);
                         if (amount < 0) throw new NumberFormatException();
                     } catch (NumberFormatException e) {
                         out.write("INVALID BET\r\n\r\n".getBytes());
@@ -123,31 +128,31 @@ class Game extends Thread {
                         continue;
                     }
 
-                    if (in_round) {
+                    if (inRound) {
                         out.write("ROUND IN PROGRESS\r\n\r\n".getBytes());
                         continue;
                     }
 
                     playerBankroll -= amount;
                     round = new Round(deckManager, amount);
-                    in_round = true;
+                    inRound = true;
                     handleRoundOutcome(round, round.start());
-                } else if (input_string[0].equals("HIT")) {
-                    if (!in_round) {
+                } else if (inputString[0].equals("HIT")) {
+                    if (!inRound) {
                         out.write("NO ACTIVE ROUND\r\n\r\n".getBytes());
                         continue;
                     } else {
                         handleRoundOutcome(round, round.hit());
                     }
-                } else if (input_string[0].equals("STAND")) {
-                    if (!in_round) {
+                } else if (inputString[0].equals("STAND")) {
+                    if (!inRound) {
                         out.write("NO ACTIVE ROUND\r\n\r\n".getBytes());
                         continue;
                     } else handleRoundOutcome(round, round.stand());
-                } else if (input_string[0].equals("BANK")) {
+                } else if (inputString[0].equals("BANK")) {
                     add_bank_response();
-                } else if (input_string[0].equals("QUIT")) {
-                    game_over = true;
+                } else if (inputString[0].equals("QUIT")) {
+                    gameOver = true;
                     continue;
                 } else {
                     out.write("WRONG\r\n\r\n".getBytes());
@@ -170,11 +175,11 @@ class Game extends Thread {
         if (outcome != null) {
             int delta = outcome.settle(round.getBet());
             playerBankroll += delta;
-            in_round = false;
+            inRound = false;
             add_roundstatus_response(round, outcome);
 
             if (deckManager.deck_index < 3 || playerBankroll <= 0) {
-                game_over = true;
+                gameOver = true;
                 add_gameover_response();
             }
         }
@@ -182,16 +187,16 @@ class Game extends Thread {
 
     void send_response() {
         try {
-            out.write((response_to_client + "\r\n").getBytes());
+            out.write((responseToClient + "\r\n").getBytes());
             out.flush();
-            response_to_client = "";
+            responseToClient = "";
         } catch (IOException e) {
             System.err.println("Error writing to socket: " + e.getMessage());
         }
     }
 
     void add_bank_response() {
-        response_to_client += "BANKROLL " + playerBankroll + "\r\n";
+        responseToClient += "BANKROLL " + playerBankroll + "\r\n";
     }
 
     void add_hand_response(Round round) {
@@ -200,7 +205,7 @@ class Game extends Thread {
         int playerTotal = round.getPlayerTotal();
         int dealerTotal = round.getDealerTotal();
 
-        response_to_client +=
+        responseToClient +=
             "PLAYER " +
             String.join(" ", playerCard) +
             " " +
@@ -209,10 +214,10 @@ class Game extends Thread {
         if (!round.getDealerCardVisible()) {
             String temp = dealerCard.get(1);
             dealerCard.set(1, "??");
-            response_to_client +=
+            responseToClient +=
                 "DEALER " + String.join(" ", dealerCard) + "\r\n";
             dealerCard.set(1, temp);
-        } else response_to_client +=
+        } else responseToClient +=
             "DEALER " +
             String.join(" ", dealerCard) +
             " " +
@@ -224,22 +229,22 @@ class Game extends Thread {
         int bet = round.getBet();
         switch (outcome) {
             case BLACKJACK:
-                response_to_client += "BLACKJACK " + bet * 1.5 + "\r\n";
+                responseToClient += "BLACKJACK " + bet * 1.5 + "\r\n";
                 break;
             case WIN:
-                response_to_client += "WIN " + bet + "\r\n";
+                responseToClient += "WIN " + bet + "\r\n";
                 break;
             case LOSE:
-                response_to_client += "LOSE " + bet + "\r\n";
+                responseToClient += "LOSE " + bet + "\r\n";
                 break;
             case PUSH:
-                response_to_client += "PUSH 0\r\n";
+                responseToClient += "PUSH 0\r\n";
                 break;
         }
     }
 
     void add_gameover_response() {
-        response_to_client += "GAME OVER\r\n";
+        responseToClient += "GAME OVER\r\n";
         add_bank_response();
     }
 

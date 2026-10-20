@@ -9,7 +9,7 @@ enum RoundOutcome {
 
     int settle(int bet) {
         return switch (this) {
-            case BLACKJACK -> bet + (bet * 3) / 2;
+            case BLACKJACK -> (int) Math.floor(bet + (bet * 3 / 2));
             case WIN -> bet * 2;
             case PUSH -> bet;
             case LOSE -> 0;
@@ -74,6 +74,7 @@ class Round {
         playerTotal = deck.pick_card(playerCard, 1);
 
         if (playerTotal == 21) {
+            dealerCardVisible = true;
             DealerPlay();
             if (playerTotal == dealerTotal) return RoundOutcome.PUSH;
 
