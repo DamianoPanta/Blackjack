@@ -1,3 +1,4 @@
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketTimeoutException;
 
@@ -17,7 +18,7 @@ class InputReader {
         this.isClient = isClient;
     }
 
-    String[] ReadLine() throws SocketTimeoutException {
+    String[] ReadLine() throws SocketTimeoutException, IOException {
         request_string = "";
         readIteration = 0;
         while (!request_string.endsWith("\r\n\r\n") && readIteration <= maxReadIteration) {
@@ -35,7 +36,7 @@ class InputReader {
         }
 
         if (readIteration > maxReadIteration) {
-            throw new SocketTimeoutException();
+            throw new IOException();
         }
 
         // remove special characters for server

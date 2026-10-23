@@ -10,50 +10,13 @@ class BlackjackServer {
 
     public static void main(String[] argv) {
         try (ServerSocket server_socket = new ServerSocket(2624)) {
-            final int INITIAL_BANKROLL = 100;
-
-            // create card deck
-            char[] card_rank = {
-                '2',
-                '3',
-                '4',
-                '5',
-                '6',
-                '7',
-                '8',
-                '9',
-                'T',
-                'J',
-                'Q',
-                'K',
-                'A',
-            };
-            char[] card_suit = { 'S', 'H', 'D', 'C' };
-            String[] deck = new String[52];
-            Short index = 0;
-
-            for (char rank : card_rank) {
-                for (char suit : card_suit) {
-                    deck[index] = new StringBuilder()
-                        .append(rank)
-                        .append(suit)
-                        .toString();
-                    index++;
-                }
-            }
-
             while (true) {
-                System.out.println("[main] Server waiting for connection");
 
                 Socket client_socket = server_socket.accept();
                 Game client_thread = new Game(
-                    client_socket,
-                    deck,
-                    INITIAL_BANKROLL
-                );
+                        client_socket);
                 client_thread.start();
 
-                System.out.println("[main] Client thread started");
             }
         } catch (IOException error) {
             System.err.print("Network error: " + error.getMessage());
@@ -63,26 +26,28 @@ class BlackjackServer {
 
 class Game extends Thread {
 
+    final int INITIAL_BANKROLL = 100;
     Socket client_socket;
     OutputStream out;
     InputStream in;
     String[] playerDeck;
     DeckManager deckManager;
-    int playerBankroll;
+    int playerBankroll = INITIAL_BANKROLL;
     String responseToClient = new String();
     boolean inRound = false;
     boolean gameOver = false;
     Round round;
 
-    Game(Socket _s, String[] deck, int bankroll) {
+    Game(Socket _s) {
         try {
             client_socket = _s;
-            client_socket.setSoTimeout(300000);     // 5 minutes    
+            client_socket.setSoTimeout(300000); // 5 minutes
             out = client_socket.getOutputStream();
             in = client_socket.getInputStream();
-            playerDeck = shuffle_deck(deck);
+
+            playerDeck = shuffleDeck(createDeck());
             deckManager = new DeckManager(playerDeck);
-            playerBankroll = bankroll;
+
         } catch (Exception e) {
             System.err.println("Error creating player " + e.getMessage());
         }
@@ -92,8 +57,8 @@ class Game extends Thread {
     public void run() {
         try {
             // Initial message to send initial bankroll
-            add_bank_response();
-            send_response();
+            // addBankResponse();
+            // sendResponse();
 
             InputReader inputReader = new InputReader(in, false);
             String[] inputString;
@@ -103,10 +68,14 @@ class Game extends Thread {
                 try {
                     inputString = inputReader.ReadLine();
                 } catch (SocketTimeoutException e) {
-                    System.err.println("Client takes too long too respond. Close connections or response abnormally long");
+                    System.err.println("Client takes too long too respond. Close client socket");
+                    break;
+                } catch (IOException e) {
+                    System.err.println("Request abnormally long. Close client socket");
                     break;
                 }
-                if (inputReader.stream_end) break;
+                if (inputReader.stream_end)
+                    break;
 
                 if (inputString[0].equals("BET")) {
                     if (inputString.length < 2) {
@@ -147,9 +116,10 @@ class Game extends Thread {
                     if (!inRound) {
                         out.write("NO ACTIVE ROUND\r\n\r\n".getBytes());
                         continue;
-                    } else handleRoundOutcome(round, round.stand());
+                    } else
+                        handleRoundOutcome(round, round.stand());
                 } else if (inputString[0].equals("BANK")) {
-                    add_bank_response();
+                    addBankResponse();
                 } else if (inputString[0].equals("QUIT")) {
                     gameOver = true;
                     continue;
@@ -158,33 +128,33 @@ class Game extends Thread {
                     continue;
                 }
 
-                send_response();
+                sendResponse();
             }
 
-            if (!client_socket.isClosed()) client_socket.close();
+            if (!client_socket.isClosed())
+                client_socket.close();
 
-            System.out.println("[Game]: client_socket closed");
         } catch (Exception e) {
             System.err.println("Player issue " + e);
         }
     }
 
     void handleRoundOutcome(Round round, RoundOutcome outcome) {
-        add_hand_response(round);
+        addHandResponse(round);
         if (outcome != null) {
             int delta = outcome.settle(round.getBet());
             playerBankroll += delta;
             inRound = false;
-            add_roundstatus_response(round, outcome);
+            addRoundstatusResponse(round, outcome);
 
             if (deckManager.deck_index < 3 || playerBankroll <= 0) {
                 gameOver = true;
-                add_gameover_response();
+                addGameoverResponse();
             }
         }
     }
 
-    void send_response() {
+    void sendResponse() {
         try {
             out.write((responseToClient + "\r\n").getBytes());
             out.flush();
@@ -194,37 +164,35 @@ class Game extends Thread {
         }
     }
 
-    void add_bank_response() {
+    void addBankResponse() {
         responseToClient += "BANKROLL " + playerBankroll + "\r\n";
     }
 
-    void add_hand_response(Round round) {
+    void addHandResponse(Round round) {
         List<String> playerCard = round.getPlayerCard();
         List<String> dealerCard = round.getDealerCard();
         int playerTotal = round.getPlayerTotal();
         int dealerTotal = round.getDealerTotal();
 
-        responseToClient +=
-            "PLAYER " +
-            String.join(" ", playerCard) +
-            " " +
-            playerTotal +
-            "\r\n";
+        responseToClient += "PLAYER " +
+                String.join(" ", playerCard) +
+                " " +
+                playerTotal +
+                "\r\n";
         if (!round.getDealerCardVisible()) {
             String temp = dealerCard.get(1);
             dealerCard.set(1, "??");
-            responseToClient +=
-                "DEALER " + String.join(" ", dealerCard) + "\r\n";
+            responseToClient += "DEALER " + String.join(" ", dealerCard) + "\r\n";
             dealerCard.set(1, temp);
-        } else responseToClient +=
-            "DEALER " +
-            String.join(" ", dealerCard) +
-            " " +
-            dealerTotal +
-            "\r\n";
+        } else
+            responseToClient += "DEALER " +
+                    String.join(" ", dealerCard) +
+                    " " +
+                    dealerTotal +
+                    "\r\n";
     }
 
-    void add_roundstatus_response(Round round, RoundOutcome outcome) {
+    void addRoundstatusResponse(Round round, RoundOutcome outcome) {
         int bet = round.getBet();
         switch (outcome) {
             case BLACKJACK:
@@ -242,12 +210,45 @@ class Game extends Thread {
         }
     }
 
-    void add_gameover_response() {
+    void addGameoverResponse() {
         responseToClient += "GAME OVER\r\n";
-        add_bank_response();
+        addBankResponse();
     }
 
-    static String[] shuffle_deck(String[] deck) {
+    String[] createDeck() {
+        // create card deck
+        char[] card_rank = {
+                '2',
+                '3',
+                '4',
+                '5',
+                '6',
+                '7',
+                '8',
+                '9',
+                'T',
+                'J',
+                'Q',
+                'K',
+                'A',
+        };
+        char[] card_suit = { 'S', 'H', 'D', 'C' };
+        String[] deck = new String[52];
+        Short index = 0;
+
+        for (char rank : card_rank) {
+            for (char suit : card_suit) {
+                deck[index] = new StringBuilder()
+                        .append(rank)
+                        .append(suit)
+                        .toString();
+                index++;
+            }
+        }
+        return deck;
+    }
+
+    String[] shuffleDeck(String[] deck) {
         int index;
         String temp;
         Random random = new Random();
