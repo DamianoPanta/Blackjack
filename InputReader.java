@@ -6,7 +6,7 @@ class InputReader {
 
     InputStream in;
     boolean stream_end = false;
-    private byte[] request_byte = new byte[10];
+    private byte[] request_byte = new byte[64];
     private String request_string = new String();
     private int request_len;
     private int maxReadIteration = 10;

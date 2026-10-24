@@ -16,21 +16,8 @@ class BlackjackClient {
 
             String conversationString;
             String[] conversation;
-            // try {
-            //     conversation = inputReader.ReadLine();
-            // } catch (SocketTimeoutException e) {
-            //     System.err.println("Server takes too long too respond. Quit game");
-            //     return;
-            // } catch (IOException e) {
-            //     System.err.println("Response abnormally long. Quit game");
-            //     return;
-            // }
-            // if (inputReader.stream_end) return;
 
-            // if (conversation[0].equals("BANKROLL")) 
-            //     System.out.println("\r\nConnected. You start with " + conversation[1].replaceAll("(\\r\\n)+$", "") + " chips.\n");
-            // else
-                System.out.println("\n Connected.\n");
+            System.out.println("\n Connected.\n");
             print_help();
 
             while (true) {
@@ -58,13 +45,17 @@ class BlackjackClient {
                 out.write((conversationString + "\r\n\r\n").getBytes());
                 out.flush();
 
-                // --- SERVER RESPOND WITH GAME STATUS ---
+                // --- TREAT SERVER RESPONSE ---
                 try {
                     conversation = inputReader.ReadLine();
                 } catch (SocketTimeoutException e) {
                     System.err.println("Server takes too long too respond or response abnormally long. Quit game");
                     break;
+                } catch (IOException e) {
+                    System.err.println("Request abnormally long. Quit game");
+                    break;
                 }
+
                 if (inputReader.stream_end) break;
 
                 conversationString = String.join(" ", conversation);

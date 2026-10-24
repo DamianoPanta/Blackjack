@@ -57,8 +57,8 @@ class Round {
     }
 
     RoundOutcome start() {
-        playerTotal = deck.pick_card(playerCard, 2);
-        dealerTotal = deck.pick_card(dealerCard, 2);
+        playerTotal = deck.pickCard(playerCard, 2);
+        dealerTotal = deck.pickCard(dealerCard, 2);
 
         if (playerTotal == 21 && dealerTotal == 21) {
             return RoundOutcome.PUSH;
@@ -71,13 +71,13 @@ class Round {
     }
 
     RoundOutcome hit() {
-        playerTotal = deck.pick_card(playerCard, 1);
+        playerTotal = deck.pickCard(playerCard, 1);
 
         if (playerTotal > 21) {
             dealerCardVisible = true;
             return RoundOutcome.LOSE;
         }
-        if (playerTotal == 21 || deck.deck_index < 0) {
+        if (playerTotal == 21 || deck.getDeckIndex() < 0) {
             return stand();
         }
         return null;
@@ -85,7 +85,7 @@ class Round {
 
     RoundOutcome stand() {
         dealerCardVisible = true;
-        DealerPlay();
+        dealerPlay();
 
         if (playerTotal == dealerTotal) return RoundOutcome.PUSH;
         else if (
@@ -94,9 +94,9 @@ class Round {
         else return RoundOutcome.LOSE;
     }
 
-    void DealerPlay() {
-        while (dealerTotal <= 16 && deck.deck_index >= 0)
-            dealerTotal = deck.pick_card(dealerCard, 1);
+    private void dealerPlay() {
+        while (dealerTotal <= 16 && deck.getDeckIndex() >= 0)
+            dealerTotal = deck.pickCard(dealerCard, 1);
     }
 
 }

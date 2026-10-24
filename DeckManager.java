@@ -3,20 +3,24 @@ import java.util.List;
 
 class DeckManager {
 
-    int deck_index;
-    String[] player_deck;
+    private int deckIndex;
+    private String[] playerDeck;
 
-    DeckManager(String[] player_deck) {
-        this.player_deck = player_deck;
-        deck_index = player_deck.length - 1;
+    DeckManager(String[] playerDeck) {
+        this.playerDeck = playerDeck;
+        deckIndex = playerDeck.length - 1;
     }
 
-    int pick_card(List<String> previous_card, int card_amount) {
-        deck_index -= card_amount;
+    int getDeckIndex() {
+        return deckIndex;
+    }
+
+    int pickCard(List<String> previous_card, int card_amount) {
+        deckIndex -= card_amount;
         String[] new_card = Arrays.copyOfRange(
-            player_deck,
-            deck_index + 1,
-            deck_index + card_amount + 1
+            playerDeck,
+            deckIndex + 1,
+            deckIndex + card_amount + 1
         );
 
         for (String card : new_card) {

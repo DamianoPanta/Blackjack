@@ -56,10 +56,6 @@ class Game extends Thread {
     @Override
     public void run() {
         try {
-            // Initial message to send initial bankroll
-            // addBankResponse();
-            // sendResponse();
-
             InputReader inputReader = new InputReader(in, false);
             String[] inputString;
             int amount;
@@ -147,7 +143,7 @@ class Game extends Thread {
             inRound = false;
             addRoundstatusResponse(round, outcome);
 
-            if (deckManager.deck_index < 3 || playerBankroll <= 0) {
+            if (deckManager.getDeckIndex() < 3 || playerBankroll <= 0) {
                 gameOver = true;
                 addGameoverResponse();
             }
@@ -248,6 +244,7 @@ class Game extends Thread {
         return deck;
     }
 
+    // Durstenfeld algorithm
     String[] shuffleDeck(String[] deck) {
         int index;
         String temp;
