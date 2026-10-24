@@ -5,12 +5,10 @@ import java.net.SocketTimeoutException;
 class InputReader {
 
     InputStream in;
-    boolean stream_end = false;
-    private byte[] request_byte = new byte[64];
-    private String request_string = new String();
-    private int request_len;
-    private int maxReadIteration = 10;
-    private int readIteration = 0;
+    boolean streamEnd = false;
+    private byte[] requestByte = new byte[64];
+    private String requestString = new String();
+    private final int MAX_REQUEST_BYTES = 256;
     boolean isClient;
 
     InputReader(InputStream in, boolean isClient) {
@@ -19,30 +17,28 @@ class InputReader {
     }
 
     String[] ReadLine() throws SocketTimeoutException, IOException {
-        request_string = "";
-        readIteration = 0;
-        while (!request_string.endsWith("\r\n\r\n") && readIteration <= maxReadIteration) {
+        requestString = "";
+        int total = 0;
+        int len = 0;
+        while (!requestString.endsWith("\r\n\r\n")) {
             try {
-                request_len = in.read(request_byte);
+                len = in.read(requestByte);
             } catch (Exception e) {
                 System.err.println("Error reading from socket: " + e.getMessage());
             }
-            if (request_len <= 0) {
-                stream_end = true;
-                return "".split("");
+            if (len <= 0) {
+                streamEnd = true;
+                return new String[0];
             }
-            request_string += new String(request_byte, 0, request_len);
-            readIteration++;
-        }
-
-        if (readIteration > maxReadIteration) {
-            throw new IOException();
+            total += len;
+            if (total > MAX_REQUEST_BYTES) throw new IOException();
+            requestString += new String(requestByte, 0, len);
         }
 
         // remove special characters for server
         if (!isClient)
-            request_string = request_string.replaceAll("(\\r\\n)+$", "");
+            requestString = requestString.replaceAll("(\\r\\n)+$", "");
 
-        return request_string.split(" ");
+        return requestString.split(" ");
     }
 }

@@ -7,10 +7,10 @@ enum RoundOutcome {
     PUSH,
     LOSE;
 
-    int settle(int bet) {
+    long settle(int bet) {
         return switch (this) {
-            case BLACKJACK -> (int) Math.floor(bet + (bet * 3 / 2));
-            case WIN -> bet * 2;
+            case BLACKJACK -> bet + (3L * bet) / 2;
+            case WIN -> bet * 2L;
             case PUSH -> bet;
             case LOSE -> 0;
         };

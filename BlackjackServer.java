@@ -27,6 +27,7 @@ class BlackjackServer {
 class Game extends Thread {
 
     final int INITIAL_BANKROLL = 100;
+    final int MAX_BANKROLL = Integer.MAX_VALUE;
     Socket client_socket;
     OutputStream out;
     InputStream in;
@@ -70,7 +71,7 @@ class Game extends Thread {
                     System.err.println("Request abnormally long. Close client socket");
                     break;
                 }
-                if (inputReader.stream_end)
+                if (inputReader.streamEnd)
                     break;
 
                 if (inputString[0].equals("BET")) {
@@ -85,8 +86,13 @@ class Game extends Thread {
                         continue;
                     }
 
-                    // 10^9 < Integer.MAX_VALUE < 10^10
-                    if (token.length() > 9 || Integer.parseInt(token) > playerBankroll) {
+                    try {
+                        amount = Integer.parseInt(token);
+                    } catch (NumberFormatException e) {
+                        out.write("INSUFFICIENT FUNDS\r\n\r\n".getBytes());
+                        continue;
+                    }
+                    if (amount > playerBankroll) {
                         out.write("INSUFFICIENT FUNDS\r\n\r\n".getBytes());
                         continue;
                     }
@@ -96,7 +102,6 @@ class Game extends Thread {
                         continue;
                     }
 
-                    amount = Integer.parseInt(token);
                     playerBankroll -= amount;
                     round = new Round(deckManager, amount);
                     inRound = true;
@@ -138,14 +143,20 @@ class Game extends Thread {
     void handleRoundOutcome(Round round, RoundOutcome outcome) {
         addHandResponse(round);
         if (outcome != null) {
-            int delta = outcome.settle(round.getBet());
-            playerBankroll += delta;
+            long updated = (long) playerBankroll + outcome.settle(round.getBet());
             inRound = false;
             addRoundstatusResponse(round, outcome);
 
-            if (deckManager.getDeckIndex() < 3 || playerBankroll <= 0) {
+            if (updated >= MAX_BANKROLL) {
+                playerBankroll = MAX_BANKROLL;
                 gameOver = true;
                 addGameoverResponse();
+            } else {
+                playerBankroll = (int) updated;
+                if (deckManager.getDeckIndex() < 3 || playerBankroll <= 0) {
+                    gameOver = true;
+                    addGameoverResponse();
+                }
             }
         }
     }

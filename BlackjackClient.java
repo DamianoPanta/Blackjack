@@ -56,7 +56,7 @@ class BlackjackClient {
                     break;
                 }
 
-                if (inputReader.stream_end) break;
+                if (inputReader.streamEnd) break;
 
                 conversationString = String.join(" ", conversation);
 
