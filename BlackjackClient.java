@@ -49,14 +49,15 @@ class BlackjackClient {
                 try {
                     conversation = inputReader.ReadLine();
                 } catch (SocketTimeoutException e) {
-                    System.err.println("Server takes too long too respond or response abnormally long. Quit game");
+                    System.err.println("Server takes too long to respond. Quit game");
+                    break;
+                } catch (EOFException e) {
+                    System.err.println("Server closed the connection. Quit game");
                     break;
                 } catch (IOException e) {
-                    System.err.println("Request abnormally long. Quit game");
+                    System.err.println(e.getMessage() + " Quit game");
                     break;
                 }
-
-                if (inputReader.streamEnd) break;
 
                 conversationString = String.join(" ", conversation);
 

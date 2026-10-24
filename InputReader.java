@@ -1,6 +1,6 @@
 import java.io.IOException;
+import java.io.EOFException;
 import java.io.InputStream;
-import java.net.SocketTimeoutException;
 
 class InputReader {
 
@@ -16,22 +16,15 @@ class InputReader {
         this.isClient = isClient;
     }
 
-    String[] ReadLine() throws SocketTimeoutException, IOException {
+    String[] ReadLine() throws IOException {
         requestString = "";
         int total = 0;
-        int len = 0;
         while (!requestString.endsWith("\r\n\r\n")) {
-            try {
-                len = in.read(requestByte);
-            } catch (Exception e) {
-                System.err.println("Error reading from socket: " + e.getMessage());
-            }
-            if (len <= 0) {
-                streamEnd = true;
-                return new String[0];
-            }
+            int len = in.read(requestByte);
+            if (len <= 0) throw new EOFException();
+
             total += len;
-            if (total > MAX_REQUEST_BYTES) throw new IOException();
+            if (total > MAX_REQUEST_BYTES) throw new IOException("Request abnormally long");
             requestString += new String(requestByte, 0, len);
         }
 

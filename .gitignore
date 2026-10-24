@@ -1,3 +1,7 @@
 *.class
 docs/Java_Sockets.pdf
 docs/report_template.tex
+docs/report_template.aux
+docs/report_template.log
+docs/report_template.out
+docs/report_template.synctex.gz

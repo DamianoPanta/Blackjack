@@ -1,4 +1,5 @@
 import java.io.IOException;
+import java.io.EOFException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.*;
@@ -9,13 +10,12 @@ import java.util.Random;
 class BlackjackServer {
 
     public static void main(String[] argv) {
-        try (ServerSocket server_socket = new ServerSocket(2624)) {
+        try (ServerSocket serverSocket = new ServerSocket(2624)) {
             while (true) {
 
-                Socket client_socket = server_socket.accept();
-                Game client_thread = new Game(
-                        client_socket);
-                client_thread.start();
+                Socket clientSocket = serverSocket.accept();
+                Game clientThread = new Game(clientSocket);
+                clientThread.start();
 
             }
         } catch (IOException error) {
@@ -28,7 +28,7 @@ class Game extends Thread {
 
     final int INITIAL_BANKROLL = 100;
     final int MAX_BANKROLL = Integer.MAX_VALUE;
-    Socket client_socket;
+    Socket clientSocket;
     OutputStream out;
     InputStream in;
     String[] playerDeck;
@@ -41,10 +41,10 @@ class Game extends Thread {
 
     Game(Socket _s) {
         try {
-            client_socket = _s;
-            client_socket.setSoTimeout(300000); // 5 minutes
-            out = client_socket.getOutputStream();
-            in = client_socket.getInputStream();
+            clientSocket = _s;
+            clientSocket.setSoTimeout(300000); // 5 minutes
+            out = clientSocket.getOutputStream();
+            in = clientSocket.getInputStream();
 
             playerDeck = shuffleDeck(createDeck());
             deckManager = new DeckManager(playerDeck);
@@ -65,14 +65,14 @@ class Game extends Thread {
                 try {
                     inputString = inputReader.ReadLine();
                 } catch (SocketTimeoutException e) {
-                    System.err.println("Client takes too long too respond. Close client socket");
+                    System.err.println("Client takes too long to respond. Close client socket");
+                    break;
+                } catch (EOFException e) {
                     break;
                 } catch (IOException e) {
-                    System.err.println("Request abnormally long. Close client socket");
+                    System.err.println("Read error: " + e.getMessage());
                     break;
                 }
-                if (inputReader.streamEnd)
-                    break;
 
                 if (inputString[0].equals("BET")) {
                     if (inputString.length < 2) {
@@ -132,8 +132,8 @@ class Game extends Thread {
                 sendResponse();
             }
 
-            if (!client_socket.isClosed())
-                client_socket.close();
+            if (!clientSocket.isClosed())
+                clientSocket.close();
 
         } catch (Exception e) {
             System.err.println("Player issue " + e);
