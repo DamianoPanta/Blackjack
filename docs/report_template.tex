@@ -1,0 +1,129 @@
+\documentclass[11pt]{article}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{geometry}
+\geometry{a4paper, margin=2.5cm}
+
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\title{Introduction to Computer Networking\\Blackjack Project Report}
+
+\author{Damiano Pantalone \\ Student ID: s2300624}
+\date{October 25, 2026}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+For this project, we were asked to implement a client-server application using Java sockets. The server manages the game plateform allowing clients to play a simplified version of Blackjack 21 against the house.
+The client interacts with it to place bets, check bankroll, hit, stand.
+
+\section{Software Architecture}
+
+($\sim$  1/4 - 1/2 page)\\
+
+Present the overall structure of your program. 
+\begin{itemize}
+    \item Which classes did you create and what are their roles?
+    \item How do these classes interact?
+\end{itemize}
+
+Here is a detail of each class in the project.
+\begin{itemize}
+    \item \texttt{DeckManager} (DeckManager.java)\\
+        It manages the deck of card through a game. The other class never modify the deck state which is better in term of security and separation of logic.
+        It provides the \texttt{pickCard} method that pick the next card on the deck, add it to an existing list of card (player or dealer hand) and return the new total of this new hand.
+
+    \item \texttt{InputReader} (InputReader.java)\\
+        The InputReader class serves as an interface for receiving the message from the other host. It handles the TCP stream which will be explain more in details in section \ref{sec:tcp-stream}.
+
+    \item \texttt{Round} (Round.java)\\
+        It handles all the logic when the player is engaged in a round. It provides methods used during a round, namely start(), hit(), ans stand(). Each of which returns a \texttt{RoundOutcome} object indicating the result of the round if it has concluded or \texttt{null} otherwise. It uses the \texttt{DeckManager} to pick cards when the round starts, the client hits or when the dealer plays.
+
+    \item \texttt{Game} (BlackjackServer.java)\\
+        It contains the core logic of the game. It creates the deck of cards shuffle it by using the Durstenfeld shuffle algorithm and creates a \texttt{DeckManager} object. The deck is not modified thereafter and will simply be consumed over the course of the game. It uses an \texttt{InputReader} object to receive the client request and call the correct \texttt{Round} method based on it. From the \texttt{RoundOutcome} object returned, it constructs the message for the client and then sends it. It stores the boolean values \texttt{inRound} and \texttt{inGame} in order to keep track of the game state.
+
+    \item \texttt{BlackjackServer} (BlackjackServer.java)\\
+        Initiates the server socket and handles client connection requests. For each of them, it launches a \texttt{Game} in a separate thread to be responsive to other clients.
+
+    \item \texttt{BlackjackClient} (BlackjackClient.java)\\
+        It connects to the server through a socket and use an \texttt{InputReader} object to receive server messages. Its logic is a simple loop that reads the user command, sends it to the server through the output stream and then displays the server response.
+
+\end{itemize}   
+
+\section{TCP Stream}
+\label{sec:tcp-stream}
+($\sim$  1/4 page)\\
+Describe how you read from the TCP stream.  
+Explain how you handle message boundaries.
+
+The \texttt{InputReader} manages the input stream and ensures that the host receives the complete message through the \texttt{ReadLine} method.
+In the blackjack protocol, a message always ends by the characters "\textbackslash r\textbackslash n\textbackslash r\textbackslash n" so until this condition is not met, the \texttt{InputReader} will continue to read the input stream.
+By doing this, we ensure that the complete message is read before it is sent back to the host, even if it is longer than the \texttt{requestByte} buffer.
+Concerning robustness, first it raises a \texttt{EOFException} indicating the input stream is closed. Secondly, the socket has a timeout of 5 minutes to prevent a client or a server thread to wait infinitely if an issue occurs on the other side of the socket.
+And finally, considering that the blackjack protocol messages are well defined and that the player can't send custom messages, \texttt{ReadLine} raises an \texttt{IOException} if the request is longer than 256 bytes which is considered abnormally long.
+Indeed the longest request would be a game over message sent by the server. In an extreme case, the request would be approximately 120 bytes (player bankroll is limited by \texttt{Integer.MAX\_VALUE} which is 10 bytes).
+\begin{verbatim}
+> printf '%b' "PLAYER A. A. A. A. 2. 2. 2. 2. 3. 3. 3. 21\r\n
+               DEALER 3. 4. 4. 4. 4. 19\r\n
+               LOSE 0123456789\r\n
+               GAME OVER\r\n
+               BANKROLL 0123456789\r\n\r\n" | wc -c
+  121
+\end{verbatim}
+Therefore, 256 bytes is confortable for the game and leaves a margin for protocol variants. Any new message type must be checked against this limit.
+
+\section{Multi-threading}
+($\sim$  1/4 page)\\
+Explain how your server supports multiple clients.  
+How does the server enable multiple games (single and multiplayer) to be played simultaneously without interfering with each other.
+
+The BlackjackServer class handles the connection of new clients and start a new Game for each of them. The game takes the client socket as an argument and then it is totally independant of the server and manages its own state. Each games correspond to a distinct thread so the server can stay responsive to other clients attempting to connect.
+\begin{verbatim}
+while (true) {
+    Socket client_socket = server_socket.accept();
+    Game client_thread = new Game(client_socket);
+    client_thread.start();
+}
+\end{verbatim}
+Consequently, there are no shared variables and no synchronization techniques needs to be implemented.
+
+\section{Robustness}
+($\sim$  1/2 page - 1 page)\\
+Discuss the mechanisms you used to make your server robust. This should include exception management, network errors and malevolent requests.
+
+Firstly the seperation of different responsabilities into different class is a first way to avoid undesirable game state.
+Each class has a simple task, the game can be seen as the conductor that reads the request from the \texttt{InputReader}, call the correct \texttt{Round} method and then builds and sends the message based on the round outcome.
+When it receives the string request, it checks which command it corresponds to. For the \textit{hit} and \textit{stand} command, it handles the case if the game is not in a round.
+If the command is \textit{bet}, it checks the validity of the bet and if the game in not alreay in a round.\\
+When these conditions are met, the \texttt{Round} takes the reponsability to follow the game rules but also to maintain the player and dealer hands. Everything that is related to a round is stored and managed here.
+And in between there is the player deck which belongs to the game but is modified during rounds.\\
+To avoid messing its state, \texttt{DeckManager} gives a robust way to interact with it. It provides a \texttt{deckIndex} used by the game to check if there is still enough cards. But it also let the round use its \texttt{pickCard} method to update the player and dealer hand as well as their total automatically.
+Therefore it has to handle the specific case of the ace card. In a first time, it considers all the aces to be 11 and maintains a counter about how many are present in the hand.
+In a second time, it while deduct 10 for each aces in the hand as long as the total is greater than 21.
+
+Concerning the robustness of the message reception, everything has been detailed in the section \ref{sec:tcp-stream}.
+
+\section{Tests}
+($\sim$  1 page - 1.5 page)\\
+Describe how you tested your code so that the game work as expected, respects
+the game rules, handles edge cases, malicious behavior, and the exchanged messages match BP. List the tools you used and additional files you created to test. Explain how to repoduce those tests
+
+\section{Conclusion}
+Reflect on your work:
+\begin{itemize}
+    \item What was most challenging?
+    \item What did you learn?
+\end{itemize}
+
+\section{AI Usage Declaration}
+
+Your AI Usage Declaration using CEUR-WS Policy on AI-Assisting Tools.
+
+\end{document}

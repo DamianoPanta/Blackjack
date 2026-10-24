@@ -4,12 +4,12 @@ import java.io.InputStream;
 
 class InputReader {
 
-    InputStream in;
+    private InputStream in;
     boolean streamEnd = false;
     private byte[] requestByte = new byte[64];
     private String requestString = new String();
     private final int MAX_REQUEST_BYTES = 256;
-    boolean isClient;
+    private boolean isClient;
 
     InputReader(InputStream in, boolean isClient) {
         this.in = in;

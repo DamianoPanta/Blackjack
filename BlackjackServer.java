@@ -145,18 +145,21 @@ class Game extends Thread {
         if (outcome != null) {
             long updated = (long) playerBankroll + outcome.settle(round.getBet());
             inRound = false;
-            addRoundstatusResponse(round, outcome);
 
-            if (updated >= MAX_BANKROLL) {
+            if (updated >= MAX_BANKROLL) {      // player max the game
                 playerBankroll = MAX_BANKROLL;
                 gameOver = true;
+                addRoundstatusResponse(round, outcome, 0);
                 addGameoverResponse();
             } else {
+                int gain = (int) updated - playerBankroll;
                 playerBankroll = (int) updated;
                 if (deckManager.getDeckIndex() < 3 || playerBankroll <= 0) {
                     gameOver = true;
+                    addRoundstatusResponse(round, outcome, gain);
                     addGameoverResponse();
                 }
+                addRoundstatusResponse(round, outcome, gain);
             }
         }
     }
@@ -199,14 +202,14 @@ class Game extends Thread {
                     "\r\n";
     }
 
-    void addRoundstatusResponse(Round round, RoundOutcome outcome) {
+    void addRoundstatusResponse(Round round, RoundOutcome outcome, int gain) {
         int bet = round.getBet();
         switch (outcome) {
             case BLACKJACK:
-                responseToClient += "BLACKJACK " + (int) Math.floor(bet * 1.5) + "\r\n";
+                responseToClient += "BLACKJACK " + (gain - bet) + "\r\n";
                 break;
             case WIN:
-                responseToClient += "WIN " + bet + "\r\n";
+                responseToClient += "WIN " + (gain - bet) + "\r\n";
                 break;
             case LOSE:
                 responseToClient += "LOSE " + bet + "\r\n";
