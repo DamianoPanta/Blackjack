@@ -5,11 +5,12 @@ import java.io.InputStream;
 class InputReader {
 
     private InputStream in;
-    boolean streamEnd = false;
-    private byte[] requestByte = new byte[64];
+    private byte[] requestByte = new byte[20];
     private String requestString = new String();
+    private String messDelimiter = "\r\n\r\n";
     private final int MAX_REQUEST_BYTES = 256;
     private boolean isClient;
+    private String nextRequest = "";
 
     InputReader(InputStream in, boolean isClient) {
         this.in = in;
@@ -17,21 +18,22 @@ class InputReader {
     }
 
     String[] ReadLine() throws IOException {
-        requestString = "";
         int total = 0;
-        while (!requestString.endsWith("\r\n\r\n")) {
-            int len = in.read(requestByte);
+        int len = 0;
+        int index;
+        requestString = nextRequest;
+        while ((index = requestString.indexOf(messDelimiter)) == -1) {
+            len = in.read(requestByte);
             if (len <= 0) throw new EOFException();
-
+            
             total += len;
             if (total > MAX_REQUEST_BYTES) throw new IOException("Request abnormally long");
             requestString += new String(requestByte, 0, len);
         }
 
-        // remove special characters for server
-        if (!isClient)
-            requestString = requestString.replaceAll("(\\r\\n)+$", "");
+        int end = index + messDelimiter.length(); // take accound of the delimiter
+        nextRequest = end == len ? "" : requestString.substring(end);
 
-        return requestString.split(" ");
+        return requestString.substring(0, isClient ? end : index).split(" ");
     }
 }

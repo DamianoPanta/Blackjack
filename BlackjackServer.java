@@ -69,8 +69,8 @@ class Game extends Thread {
                     break;
                 } catch (EOFException e) {
                     break;
-                } catch (IOException e) {
-                    System.err.println("Read error: " + e.getMessage());
+                } catch (Exception e) {
+                    System.err.println("Read error: " + e);
                     break;
                 }
 
@@ -132,11 +132,15 @@ class Game extends Thread {
                 sendResponse();
             }
 
-            if (!clientSocket.isClosed())
-                clientSocket.close();
-
         } catch (Exception e) {
             System.err.println("Player issue " + e);
+        } finally {
+            try {
+                if (!clientSocket.isClosed())
+                    clientSocket.close();
+            } catch (Exception e){
+                System.err.println("Error closing socket " + e);
+            }
         }
     }
 
@@ -158,8 +162,8 @@ class Game extends Thread {
                     gameOver = true;
                     addRoundstatusResponse(round, outcome, gain);
                     addGameoverResponse();
-                }
-                addRoundstatusResponse(round, outcome, gain);
+                } else 
+                    addRoundstatusResponse(round, outcome, gain);
             }
         }
     }
